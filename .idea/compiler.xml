@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <bytecodeTargetLevel>
+      <module name="com.example.java-source.integrationTest" target="1.8" />
+      <module name="com.example.java-source.main" target="1.8" />
+      <module name="com.example.java-source.test" target="1.8" />
+      <module name="com.example.kotlin-source.integrationTest" target="1.8" />
+      <module name="com.example.kotlin-source.main" target="1.8" />
+      <module name="com.example.kotlin-source.test" target="1.8" />
+      <module name="cordapp-example.java-source.integrationTest" target="1.8" />
+      <module name="cordapp-example.java-source.main" target="1.8" />
+      <module name="cordapp-example.java-source.test" target="1.8" />
+      <module name="cordapp-example.kotlin-source.integrationTest" target="1.8" />
+      <module name="cordapp-example.kotlin-source.main" target="1.8" />
+      <module name="cordapp-example.kotlin-source.test" target="1.8" />
+      <module name="java-source_integrationTest" target="1.8" />
+      <module name="java-source_main" target="1.8" />
+      <module name="java-source_test" target="1.8" />
+      <module name="kotlin-source_integrationTest" target="1.8" />
+      <module name="kotlin-source_main" target="1.8" />
+      <module name="kotlin-source_test" target="1.8" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_STRING" value="-parameters" />
+  </component>
+</project>

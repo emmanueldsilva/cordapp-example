@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.example.cordapp-example.iml" filepath="$PROJECT_DIR$/.idea/modules/com.example.cordapp-example.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.iml" filepath="$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.integrationTest.iml" filepath="$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.integrationTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.main.iml" filepath="$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.test.iml" filepath="$PROJECT_DIR$/.idea/modules/java-source/cordapp-example.java-source.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.iml" filepath="$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.integrationTest.iml" filepath="$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.integrationTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.main.iml" filepath="$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.test.iml" filepath="$PROJECT_DIR$/.idea/modules/kotlin-source/cordapp-example.kotlin-source.test.iml" />
+    </modules>
+  </component>
+</project>
