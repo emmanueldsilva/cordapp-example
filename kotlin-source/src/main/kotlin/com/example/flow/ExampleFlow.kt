@@ -5,11 +5,16 @@ import com.example.contract.IOUContract
 import com.example.contract.IOUContract.Companion.IOU_CONTRACT_ID
 import com.example.flow.ExampleFlow.Acceptor
 import com.example.flow.ExampleFlow.Initiator
+import com.example.schema.IOUSchemaV1
 import com.example.state.IOUState
 import net.corda.core.contracts.Command
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
 import net.corda.core.identity.Party
+import net.corda.core.node.services.Vault
+import net.corda.core.node.services.queryBy
+import net.corda.core.node.services.vault.QueryCriteria
+import net.corda.core.node.services.vault.builder
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
@@ -63,18 +68,46 @@ object ExampleFlow {
          */
         @Suspendable
         override fun call(): SignedTransaction {
-            // Obtain a reference to the notary we want to use.
-            val notary = serviceHub.networkMapCache.notaryIdentities[0]
+            val me = serviceHub.myInfo.legalIdentities.first()
+
+            val generalCriteria = QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED)
+            val results = builder {
+                var partyType = IOUSchemaV1.PersistentIOU::lenderName.equal(me.name.toString())
+                val customCriteria = QueryCriteria.VaultCustomQueryCriteria(partyType)
+                val criteria = generalCriteria.and(customCriteria)
+                serviceHub.vaultService.queryBy<IOUState>(criteria).states
+            }
+
+//            val criteria = QueryCriteria.LinearStateQueryCriteria(participants = listOf(me, otherParty), contractStateTypes = setOf(IOUState::class.java))
+//            val results = serviceHub.vaultService.queryBy<IOUState>(criteria)
 
             // Stage 1.
             progressTracker.currentStep = GENERATING_TRANSACTION
 
-            // Generate an unsigned transaction.
-            val iouState = IOUState(iouValue, serviceHub.myInfo.legalIdentities.first(), otherParty)
-            val txCommand = Command(IOUContract.Commands.Create(), iouState.participants.map { it.owningKey })
-            val txBuilder = TransactionBuilder(notary)
-                    .addOutputState(iouState, IOU_CONTRACT_ID)
-                    .addCommand(txCommand)
+            var txBuilder : TransactionBuilder
+            if (results.isEmpty()) {
+                // Obtain a reference to the notary we want to use.
+                val notary = serviceHub.networkMapCache.notaryIdentities.first()
+
+                val iouState = IOUState(iouValue, me, otherParty)
+
+                val txCommand = Command(IOUContract.Commands.Create(), iouState.participants.map { it.owningKey })
+                txBuilder = TransactionBuilder(notary)
+                        .addOutputState(iouState, IOU_CONTRACT_ID)
+                        .addCommand(txCommand)
+            } else {
+                val stateAndRef = results.first()
+                val iouState = stateAndRef.state.data
+
+                var newValue = iouState.value + iouValue
+                val newIOUState = iouState.copy(value = newValue)
+
+                val txCommand = Command(IOUContract.Commands.Accumulate(), newIOUState.participants.map { it.owningKey })
+                txBuilder = TransactionBuilder(stateAndRef.state.notary)
+                        .addInputState(stateAndRef)
+                        .addOutputState(newIOUState, IOU_CONTRACT_ID)
+                        .addCommand(txCommand)
+            }
 
             // Stage 2.
             progressTracker.currentStep = VERIFYING_TRANSACTION

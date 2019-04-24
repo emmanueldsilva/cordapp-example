@@ -1,5 +1,6 @@
 package com.example.api
 
+import com.example.flow.ExampleFlow
 import com.example.flow.ExampleFlow.Initiator
 import com.example.flow.PayIOUFlow
 import com.example.schema.IOUSchemaV1
@@ -84,11 +85,13 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
         if (partyName == null) {
             return Response.status(BAD_REQUEST).entity("Query parameter 'partyName' missing or has wrong format.\n").build()
         }
+
         val otherParty = rpcOps.wellKnownPartyFromX500Name(partyName) ?:
                 return Response.status(BAD_REQUEST).entity("Party named $partyName cannot be found.\n").build()
 
+
         return try {
-            val signedTx = rpcOps.startTrackedFlow(::Initiator, iouValue, otherParty).returnValue.getOrThrow()
+            val signedTx = rpcOps.startTrackedFlow(ExampleFlow::Initiator, iouValue, otherParty).returnValue.getOrThrow()
             Response.status(CREATED).entity("Transaction id ${signedTx.id} committed to ledger.\n").build()
 
         } catch (ex: Throwable) {

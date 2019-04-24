@@ -31,6 +31,7 @@ class IOUContract : Contract {
 
         when (command.value) {
             is Commands.Create -> createIOUChecker(tx, command)
+            is Commands.Accumulate -> accumulateIOUChecker(tx, command)
             is Commands.Pay -> payIOUChecker(tx, command)
         }
     }
@@ -46,6 +47,25 @@ class IOUContract : Contract {
 
             // IOU-specific constraints.
             "The IOU's value must be non-negative." using (out.value > 0)
+        }
+    }
+
+    private fun accumulateIOUChecker(tx: LedgerTransaction, command: CommandWithParties<Commands>) {
+        requireThat {
+            // Generic constraints around the IOU transaction.
+            "Only one input state should be consumed when an IOU will be accumulated." using (tx.inputs.size == 1)
+            "Only one output state should be created." using (tx.outputs.size == 1)
+
+            val input = tx.inputsOfType<IOUState>().single()
+            val output = tx.outputsOfType<IOUState>().single()
+            "The input's lender and the output's lender should be the same entity." using (input.lender == output.lender)
+            "The input's borrower and the output's borrower should be the same entity." using (input.borrower == output.borrower)
+
+            "The lender and the borrower cannot be the same entity." using (output.lender != output.borrower)
+            "All of the participants must be signers." using (command.signers.containsAll(output.participants.map { it.owningKey }))
+
+            // IOU-specific constraints.
+            "The IOU's value must be non-negative." using (output.value > 0)
         }
     }
 
@@ -68,6 +88,7 @@ class IOUContract : Contract {
      */
     interface Commands : CommandData {
         class Create : Commands
+        class Accumulate : Commands
         class Pay : Commands
     }
 }
