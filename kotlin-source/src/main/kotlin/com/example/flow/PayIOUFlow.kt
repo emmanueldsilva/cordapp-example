@@ -2,19 +2,19 @@ package com.example.flow
 
 import co.paralleluniverse.fibers.Suspendable
 import com.example.contract.IOUContract
+import com.example.schema.IOUSchemaV1
 import com.example.state.IOUState
 import net.corda.core.contracts.Command
-import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
+import net.corda.core.identity.Party
+import net.corda.core.node.services.Vault
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.*
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
 import net.corda.core.utilities.ProgressTracker.Step
-
-
 
 /**
  * This flow allows two parties (the [Initiator] and the [Acceptor]) to come to an agreement about the IOU encapsulated
@@ -30,7 +30,8 @@ import net.corda.core.utilities.ProgressTracker.Step
 object PayIOUFlow {
     @InitiatingFlow
     @StartableByRPC
-    class Initiator(val iouId: UniqueIdentifier) : FlowLogic<SignedTransaction>() {
+    class Initiator(val paymentValue: Int,
+                    val otherParty: Party) : FlowLogic<SignedTransaction>() {
         /**
          * The progress tracker checkpoints each stage of the flow and outputs the specified messages when each
          * checkpoint is reached in the code. See the 'progressTracker.currentStep' expressions within the call() function.
@@ -63,21 +64,50 @@ object PayIOUFlow {
          */
         @Suspendable
         override fun call(): SignedTransaction {
-            // Stage 1.
-            progressTracker.currentStep = GENERATING_TRANSACTION
+            val me = serviceHub.myInfo.legalIdentities.first()
 
-            // Generate an unsigned transaction.
-            val criteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(iouId))
-            val inputStateAndRef = serviceHub.vaultService.queryBy<IOUState>(criteria).states.single()
-            val inputIOUState = inputStateAndRef.state.data
+            val generalCriteria = QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED)
+            val results = builder {
+                val lenderCriteria = QueryCriteria.VaultCustomQueryCriteria(IOUSchemaV1.PersistentIOU::lenderName.equal(me.name.toString()))
+                val borrowerCriteria = QueryCriteria.VaultCustomQueryCriteria(IOUSchemaV1.PersistentIOU::borrowerName.equal(otherParty.name.toString()))
+//                val criteria = generalCriteria.and(lenderCriteria).and(borrowerCriteria)
+                serviceHub.vaultService.queryBy<IOUState>(generalCriteria and lenderCriteria and borrowerCriteria).states
+            }
+
+            requireThat {
+                "There are no IOUs to be payed" using (results.isNotEmpty())
+                "There are more than one IOUs created to the borrower " + otherParty.name.toString()  using (results.size == 1)
+            }
+
+            val inputStateAndRef = results.single()
+            val inputState = inputStateAndRef.state.data
+
+            requireThat {
+                "Payment value is greater than the IOU value" using (paymentValue > inputState.value)
+            }
 
             // Obtain a reference to the notary we want to use.
             val notary = inputStateAndRef.state.notary
 
-            val txCommand = Command(IOUContract.Commands.Pay(), inputIOUState.participants.map { it.owningKey })
-            val txBuilder = TransactionBuilder(notary)
-                    .addInputState(inputStateAndRef)
-                    .addCommand(txCommand)
+            // Stage 1.
+            progressTracker.currentStep = GENERATING_TRANSACTION
+
+            // Generate an unsigned transaction.
+            var txBuilder : TransactionBuilder
+            if (inputState.value == paymentValue) {
+                val txCommand = Command(IOUContract.Commands.Pay(), inputState.participants.map { it.owningKey })
+                txBuilder = TransactionBuilder(notary)
+                        .addInputState(inputStateAndRef)
+                        .addCommand(txCommand)
+            } else {
+                val outputValue = inputState.value - paymentValue
+
+                val txCommand = Command(IOUContract.Commands.Pay(), inputState.participants.map { it.owningKey })
+                txBuilder = TransactionBuilder(notary)
+                        .addInputState(inputStateAndRef)
+                        .addOutputState(inputState.copy(value = outputValue), IOUContract.IOU_CONTRACT_ID)
+                        .addCommand(txCommand)
+            }
 
             // Stage 2.
             progressTracker.currentStep = VERIFYING_TRANSACTION
@@ -92,7 +122,7 @@ object PayIOUFlow {
             // Stage 4.
             progressTracker.currentStep = GATHERING_SIGS
             // Send the state to the counterparty, and receive it back with their signature.
-            val otherPartyFlow = initiateFlow(inputIOUState.borrower)
+            val otherPartyFlow = initiateFlow(inputState.borrower)
             val fullySignedTx = subFlow(CollectSignaturesFlow(partSignedTx, setOf(otherPartyFlow), GATHERING_SIGS.childProgressTracker()))
 
             // Stage 5.
@@ -108,7 +138,7 @@ object PayIOUFlow {
         override fun call(): SignedTransaction {
             val signTransactionFlow = object : SignTransactionFlow(otherPartyFlow) {
                 override fun checkTransaction(stx: SignedTransaction) = requireThat {
-                    "Não deve haver output nessa transação pois o state será consumido." using (stx.tx.outputs.isEmpty())
+                    //TODO implement validations
                 }
             }
 

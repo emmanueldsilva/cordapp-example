@@ -1,8 +1,7 @@
 package com.example.api
 
 import com.example.flow.ExampleFlow
-import com.example.flow.ExampleFlow.Initiator
-import com.example.flow.PayIOUFlow
+import com.example.flow.PayIOUFlowOld
 import com.example.schema.IOUSchemaV1
 import com.example.state.IOUState
 import net.corda.core.contracts.UniqueIdentifier
@@ -12,7 +11,6 @@ import net.corda.core.messaging.startTrackedFlow
 import net.corda.core.messaging.vaultQueryBy
 import net.corda.core.node.services.IdentityService
 import net.corda.core.node.services.Vault
-import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
 import net.corda.core.node.services.vault.builder
 import net.corda.core.utilities.getOrThrow
@@ -87,7 +85,7 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
         }
 
         val otherParty = rpcOps.wellKnownPartyFromX500Name(partyName) ?:
-                return Response.status(BAD_REQUEST).entity("Party named $partyName cannot be found.\n").build()
+        return Response.status(BAD_REQUEST).entity("Party named $partyName cannot be found.\n").build()
 
 
         return try {
@@ -112,7 +110,7 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
         val results = rpcOps.vaultQueryBy<IOUState>(criteria)
 
         return try {
-            val signedTx = rpcOps.startTrackedFlow(PayIOUFlow::Initiator, UniqueIdentifier.fromString(idIOU)).returnValue.getOrThrow()
+            val signedTx = rpcOps.startTrackedFlow(PayIOUFlowOld::Initiator, UniqueIdentifier.fromString(idIOU)).returnValue.getOrThrow()
             Response.status(OK).entity("Transaction id ${signedTx.id} committed to ledger.\n").build()
 
         } catch (ex: Throwable) {
@@ -120,8 +118,8 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
             Response.status(BAD_REQUEST).entity(ex.message!!).build()
         }
     }
-	
-	/**
+
+    /**
      * Displays all IOU states that are created by Party.
      */
     @GET
@@ -130,11 +128,11 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
     fun myious(): Response {
         val generalCriteria = QueryCriteria.VaultQueryCriteria(Vault.StateStatus.ALL)
         val results = builder {
-                var partyType = IOUSchemaV1.PersistentIOU::lenderName.equal(rpcOps.nodeInfo().legalIdentities.first().name.toString())
-                val customCriteria = QueryCriteria.VaultCustomQueryCriteria(partyType)
-                val criteria = generalCriteria.and(customCriteria)
-                val results = rpcOps.vaultQueryBy<IOUState>(criteria).states
-                return Response.ok(results).build()
+            var partyType = IOUSchemaV1.PersistentIOU::lenderName.equal(rpcOps.nodeInfo().legalIdentities.first().name.toString())
+            val customCriteria = QueryCriteria.VaultCustomQueryCriteria(partyType)
+            val criteria = generalCriteria.and(customCriteria)
+            val results = rpcOps.vaultQueryBy<IOUState>(criteria).states
+            return Response.ok(results).build()
         }
     }
 }
