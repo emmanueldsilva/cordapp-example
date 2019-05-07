@@ -5,6 +5,7 @@ import com.example.contract.IOUContract
 import com.example.schema.IOUSchemaV1
 import com.example.state.IOUState
 import net.corda.core.contracts.Command
+import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
 import net.corda.core.identity.Party
@@ -31,7 +32,7 @@ object PayIOUFlow {
     @InitiatingFlow
     @StartableByRPC
     class Initiator(val paymentValue: Int,
-                    val otherParty: Party) : FlowLogic<SignedTransaction>() {
+                    private val otherParty: Party) : FlowLogic<SignedTransaction>() {
         /**
          * The progress tracker checkpoints each stage of the flow and outputs the specified messages when each
          * checkpoint is reached in the code. See the 'progressTracker.currentStep' expressions within the call() function.
@@ -66,25 +67,15 @@ object PayIOUFlow {
         override fun call(): SignedTransaction {
             val me = serviceHub.myInfo.legalIdentities.first()
 
-            val generalCriteria = QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED)
             val results = builder {
+                val generalCriteria = QueryCriteria.VaultQueryCriteria(Vault.StateStatus.UNCONSUMED)
                 val lenderCriteria = QueryCriteria.VaultCustomQueryCriteria(IOUSchemaV1.PersistentIOU::lenderName.equal(me.name.toString()))
                 val borrowerCriteria = QueryCriteria.VaultCustomQueryCriteria(IOUSchemaV1.PersistentIOU::borrowerName.equal(otherParty.name.toString()))
-//                val criteria = generalCriteria.and(lenderCriteria).and(borrowerCriteria)
                 serviceHub.vaultService.queryBy<IOUState>(generalCriteria and lenderCriteria and borrowerCriteria).states
-            }
-
-            requireThat {
-                "There are no IOUs to be payed" using (results.isNotEmpty())
-                "There are more than one IOUs created to the borrower " + otherParty.name.toString()  using (results.size == 1)
             }
 
             val inputStateAndRef = results.single()
             val inputState = inputStateAndRef.state.data
-
-            requireThat {
-                "Payment value is greater than the IOU value" using (paymentValue > inputState.value)
-            }
 
             // Obtain a reference to the notary we want to use.
             val notary = inputStateAndRef.state.notary
@@ -93,21 +84,7 @@ object PayIOUFlow {
             progressTracker.currentStep = GENERATING_TRANSACTION
 
             // Generate an unsigned transaction.
-            var txBuilder : TransactionBuilder
-            if (inputState.value == paymentValue) {
-                val txCommand = Command(IOUContract.Commands.Pay(), inputState.participants.map { it.owningKey })
-                txBuilder = TransactionBuilder(notary)
-                        .addInputState(inputStateAndRef)
-                        .addCommand(txCommand)
-            } else {
-                val outputValue = inputState.value - paymentValue
-
-                val txCommand = Command(IOUContract.Commands.Pay(), inputState.participants.map { it.owningKey })
-                txBuilder = TransactionBuilder(notary)
-                        .addInputState(inputStateAndRef)
-                        .addOutputState(inputState.copy(value = outputValue), IOUContract.IOU_CONTRACT_ID)
-                        .addCommand(txCommand)
-            }
+            val txBuilder = buildPayIOUTransaction(inputState, notary, inputStateAndRef)
 
             // Stage 2.
             progressTracker.currentStep = VERIFYING_TRANSACTION
@@ -130,6 +107,23 @@ object PayIOUFlow {
             // Notarise and record the transaction in both parties' vaults.
             return subFlow(FinalityFlow(fullySignedTx, FINALISING_TRANSACTION.childProgressTracker()))
         }
+    }
+
+    private fun Initiator.buildPayIOUTransaction(inputState: IOUState, notary: Party, inputStateAndRef: StateAndRef<IOUState>): TransactionBuilder {
+        if (inputState.value == paymentValue) {
+            val txCommand = Command(IOUContract.Commands.Pay(), inputState.participants.map { it.owningKey })
+            return TransactionBuilder(notary)
+                    .addInputState(inputStateAndRef)
+                    .addCommand(txCommand)
+        }
+
+        val outputValue = inputState.value - paymentValue
+
+        val txCommand = Command(IOUContract.Commands.PayPartial(), inputState.participants.map { it.owningKey })
+        return TransactionBuilder(notary)
+                .addInputState(inputStateAndRef)
+                .addOutputState(inputState.copy(value = outputValue), IOUContract.IOU_CONTRACT_ID)
+                .addCommand(txCommand)
     }
 
     @InitiatedBy(Initiator::class)

@@ -8,6 +8,7 @@ import com.example.flow.ExampleFlow.Initiator
 import com.example.schema.IOUSchemaV1
 import com.example.state.IOUState
 import net.corda.core.contracts.Command
+import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
 import net.corda.core.identity.Party
@@ -74,37 +75,13 @@ object ExampleFlow {
             val results = builder {
                 val lenderCriteria = QueryCriteria.VaultCustomQueryCriteria(IOUSchemaV1.PersistentIOU::lenderName.equal(me.name.toString()))
                 val borrowerCriteria = QueryCriteria.VaultCustomQueryCriteria(IOUSchemaV1.PersistentIOU::borrowerName.equal(otherParty.name.toString()))
-                val criteria = generalCriteria.and(lenderCriteria).and(borrowerCriteria)
-                serviceHub.vaultService.queryBy<IOUState>(criteria).states
+                serviceHub.vaultService.queryBy<IOUState>(generalCriteria and lenderCriteria and borrowerCriteria).states
             }
 
             // Stage 1.
             progressTracker.currentStep = GENERATING_TRANSACTION
 
-            var txBuilder : TransactionBuilder
-            if (results.isEmpty()) {
-                // Obtain a reference to the notary we want to use.
-                val notary = serviceHub.networkMapCache.notaryIdentities.first()
-
-                val iouState = IOUState(iouValue, me, otherParty)
-
-                val txCommand = Command(IOUContract.Commands.Create(), iouState.participants.map { it.owningKey })
-                txBuilder = TransactionBuilder(notary)
-                        .addOutputState(iouState, IOU_CONTRACT_ID)
-                        .addCommand(txCommand)
-            } else {
-                val stateAndRef = results.single()
-                val iouState = stateAndRef.state.data
-
-                var newValue = iouState.value + iouValue
-                val newIOUState = iouState.copy(value = newValue)
-
-                val txCommand = Command(IOUContract.Commands.Accumulate(), newIOUState.participants.map { it.owningKey })
-                txBuilder = TransactionBuilder(stateAndRef.state.notary)
-                        .addInputState(stateAndRef)
-                        .addOutputState(newIOUState, IOU_CONTRACT_ID)
-                        .addCommand(txCommand)
-            }
+            val txBuilder = buildIOUTransaction(results, me)
 
             // Stage 2.
             progressTracker.currentStep = VERIFYING_TRANSACTION
@@ -126,6 +103,32 @@ object ExampleFlow {
             progressTracker.currentStep = FINALISING_TRANSACTION
             // Notarise and record the transaction in both parties' vaults.
             return subFlow(FinalityFlow(fullySignedTx, FINALISING_TRANSACTION.childProgressTracker()))
+        }
+
+        private fun buildIOUTransaction(results: List<StateAndRef<IOUState>>, me: Party): TransactionBuilder {
+            if (results.isEmpty()) {
+                // Obtain a reference to the notary we want to use.
+                val notary = serviceHub.networkMapCache.notaryIdentities.first()
+
+                val iouState = IOUState(iouValue, me, otherParty)
+
+                val txCommand = Command(IOUContract.Commands.Create(), iouState.participants.map { it.owningKey })
+                return TransactionBuilder(notary)
+                        .addOutputState(iouState, IOU_CONTRACT_ID)
+                        .addCommand(txCommand)
+            }
+
+            val stateAndRef = results.single()
+            val iouState = stateAndRef.state.data
+
+            val newValue = iouState.value + iouValue
+            val newIOUState = iouState.copy(value = newValue)
+
+            val txCommand = Command(IOUContract.Commands.Accumulate(), newIOUState.participants.map { it.owningKey })
+            return TransactionBuilder(stateAndRef.state.notary)
+                    .addInputState(stateAndRef)
+                    .addOutputState(newIOUState, IOU_CONTRACT_ID)
+                    .addCommand(txCommand)
         }
     }
 

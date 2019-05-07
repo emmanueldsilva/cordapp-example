@@ -42,9 +42,9 @@ class PayIOUFlowTests {
 
         val flow = PayIOUFlow.Initiator(10, partyB)
         val future = a.startFlow(flow)
+        fail("There are no IOUs to be payed")
         network.runNetwork()
 
-        fail("There are no IOUs to be payed")
         future.getOrThrow()
     }
 

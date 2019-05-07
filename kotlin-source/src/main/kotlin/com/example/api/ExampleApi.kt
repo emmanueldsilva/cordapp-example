@@ -1,10 +1,11 @@
 package com.example.api
 
+import com.example.api.request.checker.CreateIOURequestChecker
+import com.example.api.request.checker.PayIOURequestChecker
 import com.example.flow.ExampleFlow
-import com.example.flow.PayIOUFlowOld
+import com.example.flow.PayIOUFlow
 import com.example.schema.IOUSchemaV1
 import com.example.state.IOUState
-import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.messaging.startTrackedFlow
@@ -77,19 +78,11 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
     @PUT
     @Path("create-iou")
     fun createIOU(@QueryParam("iouValue") iouValue: Int, @QueryParam("partyName") partyName: CordaX500Name?): Response {
-        if (iouValue <= 0 ) {
-            return Response.status(BAD_REQUEST).entity("Query parameter 'iouValue' must be non-negative.\n").build()
-        }
-        if (partyName == null) {
-            return Response.status(BAD_REQUEST).entity("Query parameter 'partyName' missing or has wrong format.\n").build()
-        }
-
-        val otherParty = rpcOps.wellKnownPartyFromX500Name(partyName) ?:
-        return Response.status(BAD_REQUEST).entity("Party named $partyName cannot be found.\n").build()
-
-
         return try {
-            val signedTx = rpcOps.startTrackedFlow(ExampleFlow::Initiator, iouValue, otherParty).returnValue.getOrThrow()
+            CreateIOURequestChecker(rpcOps).check(iouValue, partyName)
+
+            val otherParty = rpcOps.wellKnownPartyFromX500Name(partyName!!)
+            val signedTx = rpcOps.startTrackedFlow(ExampleFlow::Initiator, iouValue, otherParty!!).returnValue.getOrThrow()
             Response.status(CREATED).entity("Transaction id ${signedTx.id} committed to ledger.\n").build()
 
         } catch (ex: Throwable) {
@@ -98,26 +91,41 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
         }
     }
 
-
     @POST
     @Path("pay-iou")
-    fun payIOU(@QueryParam("id-iou") idIOU: String): Response {
-        if (idIOU.isEmpty()) {
-            return Response.status(BAD_REQUEST).entity("Query parameter 'id-iou' must be not empty.\n").build()
-        }
-
-        val criteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(UniqueIdentifier.fromString(idIOU)))
-        val results = rpcOps.vaultQueryBy<IOUState>(criteria)
-
+    fun payIOU(@QueryParam("iouValue") iouValue: Int, @QueryParam("partyName") partyName: CordaX500Name?): Response {
         return try {
-            val signedTx = rpcOps.startTrackedFlow(PayIOUFlowOld::Initiator, UniqueIdentifier.fromString(idIOU)).returnValue.getOrThrow()
-            Response.status(OK).entity("Transaction id ${signedTx.id} committed to ledger.\n").build()
+            PayIOURequestChecker(rpcOps).check(iouValue, partyName)
+
+            val otherParty = rpcOps.wellKnownPartyFromX500Name(partyName!!)
+            val signedTx = rpcOps.startTrackedFlow(PayIOUFlow::Initiator, iouValue, otherParty!!).returnValue.getOrThrow()
+            Response.status(CREATED).entity("Transaction id ${signedTx.id} committed to ledger.\n").build()
 
         } catch (ex: Throwable) {
             logger.error(ex.message, ex)
             Response.status(BAD_REQUEST).entity(ex.message!!).build()
         }
     }
+
+//    @POST
+//    @Path("pay-iou")
+//    fun payIOU(@QueryParam("id-iou") idIOU: String): Response {
+//        if (idIOU.isEmpty()) {
+//            return Response.status(BAD_REQUEST).entity("Query parameter 'id-iou' must be not empty.\n").build()
+//        }
+//
+//        val criteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(UniqueIdentifier.fromString(idIOU)))
+//        val results = rpcOps.vaultQueryBy<IOUState>(criteria)
+//
+//        return try {
+//            val signedTx = rpcOps.startTrackedFlow(PayIOUFlowOld::Initiator, UniqueIdentifier.fromString(idIOU)).returnValue.getOrThrow()
+//            Response.status(OK).entity("Transaction id ${signedTx.id} committed to ledger.\n").build()
+//
+//        } catch (ex: Throwable) {
+//            logger.error(ex.message, ex)
+//            Response.status(BAD_REQUEST).entity(ex.message!!).build()
+//        }
+//    }
 
     /**
      * Displays all IOU states that are created by Party.

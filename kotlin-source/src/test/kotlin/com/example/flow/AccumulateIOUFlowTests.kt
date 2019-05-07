@@ -1,8 +1,6 @@
 package com.example.flow
 
 import com.example.state.IOUState
-import net.corda.core.contracts.TransactionVerificationException
-import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.node.services.Vault
 import net.corda.core.node.services.queryBy
 import net.corda.core.node.services.vault.QueryCriteria
@@ -11,15 +9,9 @@ import net.corda.testing.core.singleIdentity
 import net.corda.testing.node.MockNetwork
 import net.corda.testing.node.StartedMockNode
 import org.junit.After
-import org.junit.Assert
 import org.junit.Before
 import org.junit.Test
-import org.mockito.ArgumentMatchers
-import org.mockito.Matchers
-import org.mockito.internal.hamcrest.HamcrestArgumentMatcher
-import java.util.*
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 
 class AccumulateIOUFlowTests {
     lateinit var network: MockNetwork
@@ -54,7 +46,7 @@ class AccumulateIOUFlowTests {
         val future = a.startFlow(flow)
         network.runNetwork()
 
-        val signedTx = future.getOrThrow()
+        future.getOrThrow()
 
         for (node in listOf(a, b)) {
             node.transaction {
