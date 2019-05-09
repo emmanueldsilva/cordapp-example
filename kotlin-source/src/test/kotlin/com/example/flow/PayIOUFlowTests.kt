@@ -37,18 +37,6 @@ class PayIOUFlowTests {
     }
 
     @Test
-    fun `there should be an IOU to be payed`() {
-        val partyB = b.info.singleIdentity()
-
-        val flow = PayIOUFlow.Initiator(10, partyB)
-        val future = a.startFlow(flow)
-        fail("There are no IOUs to be payed")
-        network.runNetwork()
-
-        future.getOrThrow()
-    }
-
-    @Test
     fun `when A pay B then the IOUState should be consumed`() {
         createIOU()
 

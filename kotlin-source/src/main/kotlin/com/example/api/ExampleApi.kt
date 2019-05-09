@@ -107,26 +107,6 @@ class ExampleApi(private val rpcOps: CordaRPCOps) {
         }
     }
 
-//    @POST
-//    @Path("pay-iou")
-//    fun payIOU(@QueryParam("id-iou") idIOU: String): Response {
-//        if (idIOU.isEmpty()) {
-//            return Response.status(BAD_REQUEST).entity("Query parameter 'id-iou' must be not empty.\n").build()
-//        }
-//
-//        val criteria = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(UniqueIdentifier.fromString(idIOU)))
-//        val results = rpcOps.vaultQueryBy<IOUState>(criteria)
-//
-//        return try {
-//            val signedTx = rpcOps.startTrackedFlow(PayIOUFlowOld::Initiator, UniqueIdentifier.fromString(idIOU)).returnValue.getOrThrow()
-//            Response.status(OK).entity("Transaction id ${signedTx.id} committed to ledger.\n").build()
-//
-//        } catch (ex: Throwable) {
-//            logger.error(ex.message, ex)
-//            Response.status(BAD_REQUEST).entity(ex.message!!).build()
-//        }
-//    }
-
     /**
      * Displays all IOU states that are created by Party.
      */

@@ -95,6 +95,30 @@ app.controller('ModalInstanceCtrl', function ($http, $location, $uibModalInstanc
         }
     };
 
+    modalInstance.pay = () => {
+            if (invalidFormInput()) {
+                modalInstance.formError = true;
+            } else {
+                modalInstance.formError = false;
+
+                $uibModalInstance.close();
+
+                const payIOUEndpoint = `${apiBaseURL}pay-iou?partyName=${modalInstance.form.counterparty}&iouValue=${modalInstance.form.value}`;
+
+                // Create PO and handle success / fail responses.
+                $http.post(payIOUEndpoint).then(
+                    (result) => {
+                        modalInstance.displayMessage(result);
+                        demoApp.getIOUs();
+                        demoApp.getMyIOUs();
+                    },
+                    (result) => {
+                        modalInstance.displayMessage(result);
+                    }
+                );
+            }
+        };
+
     modalInstance.displayMessage = (message) => {
         const modalInstanceTwo = $uibModal.open({
             templateUrl: 'messageContent.html',
